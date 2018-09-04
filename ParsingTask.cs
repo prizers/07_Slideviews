@@ -4,25 +4,54 @@ using System.Linq;
 
 namespace linq_slideviews
 {
-	public class ParsingTask
-	{
-		/// <param name="lines">все строки файла, которые нужно распарсить. Первая строка заголовочная.</param>
-		/// <returns>Словарь: ключ — идентификатор слайда, значение — информация о слайде</returns>
-		/// <remarks>Метод должен пропускать некорректные строки, игнорируя их</remarks>
-		public static IDictionary<int, SlideRecord> ParseSlideRecords(IEnumerable<string> lines)
-		{
-			throw new NotImplementedException();
-		}
+    public static class StringExt
+    {
+        public static string[] SplitBySemicolon(this string s) => s.Split(';');
 
-		/// <param name="lines">все строки файла, которые нужно распарсить. Первая строка — заголовочная.</param>
-		/// <param name="slides">Словарь информации о слайдах по идентификатору слайда. 
-		/// Такой словарь можно получить методом ParseSlideRecords</param>
-		/// <returns>Список информации о посещениях</returns>
-		/// <exception cref="FormatException">Если среди строк есть некорректные</exception>
-		public static IEnumerable<VisitRecord> ParseVisitRecords(
-			IEnumerable<string> lines, IDictionary<int, SlideRecord> slides)
-		{
-			throw new NotImplementedException();
-		}
-	}
+        public static SlideRecord ToSlideRecord(this string s)
+        {
+            var v = s.SplitBySemicolon();
+            int slideId;
+            SlideType slideType;
+            if (3 == v.Count() &&
+                int.TryParse(v[0], out slideId) &&
+                Enum.TryParse(v[1], true, out slideType))
+                return new SlideRecord(slideId, slideType, v[2]);
+            else return null;
+        }
+
+        public static VisitRecord ToVisitRecord(this string s,
+            IDictionary<int, SlideRecord> slides)
+        {
+            var v = s.SplitBySemicolon();
+            int userId;
+            int slideId;
+            DateTime dateTime;
+            if (4 == v.Count() &&
+                int.TryParse(v[0], out userId) &&
+                int.TryParse(v[1], out slideId) &&
+                DateTime.TryParse(v[2] + 'T' + v[3], out dateTime) &&
+                slides.ContainsKey(slideId))
+                return new VisitRecord(userId, slideId, dateTime, slides[slideId].SlideType);
+            else throw new FormatException("Wrong line [" + s + "]");
+        }
+    }
+
+    public class ParsingTask
+    {
+        public static IDictionary<int, SlideRecord> ParseSlideRecords(IEnumerable<string> lines)
+        {
+            return lines.Skip(1)
+                        .Select(s => s.ToSlideRecord())
+                        .Where(r => (r != null))
+                        .ToDictionary(r => r.SlideId, r => r);
+        }
+
+        public static IEnumerable<VisitRecord> ParseVisitRecords(
+            IEnumerable<string> lines, IDictionary<int, SlideRecord> slides)
+        {
+            return lines.Skip(1)
+                        .Select(s => s.ToVisitRecord(slides));
+        }
+    }
 }
